@@ -49,13 +49,21 @@ export const dataProviders: DataProvider[] = [
           scope:
             name === "유튜브" && ["basic", "metrics"].includes(k)
               ? "서버 경로 준비 · 지정한 공개 동영상 ID. 실제 권한·호출 검증 전"
-              : name === "인스타그램" || name === "틱톡"
-                ? "허용 계정·콘텐츠 범위 확인 전; 임의 공개 계정 전체 수집을 전제하지 않음"
-                : "수동 기록만 제공",
+              : name === "인스타그램"
+                ? k === "search"
+                  ? "계정명 조회 경로 준비; 해시태그 검색은 Meta 승인 대기"
+                  : k === "comments"
+                    ? "댓글 개수만 수집; 댓글 본문 수집은 미연결"
+                    : "연결 계정 및 지원되는 공개 전문 계정; 외부 계정 인사이트 권한은 미검증"
+                : name === "틱톡"
+                  ? "권한·대상 범위 확인 전"
+                  : "수동 기록만 제공",
           auth:
             name === "유튜브"
               ? "서버 YOUTUBE_API_KEY / YouTube Data API v3 활성화; 비공개·계정 전용 자료는 별도 OAuth 검토"
-              : "공식 문서와 실제 발급 권한 확인 필요",
+              : name === "인스타그램"
+                ? "Instagram API with Facebook Login / 서버 INSTAGRAM_ACCESS_TOKEN; 메타 설정·계정 재연결 안 함"
+                : "공식 문서와 실제 발급 권한 확인 필요",
           limit:
             name === "유튜브"
               ? "videos.list 요청당 할당량·일일 프로젝트 한도는 최신 콘솔·공식 문서 확인"

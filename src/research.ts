@@ -28,6 +28,7 @@ export type Metric = {
   status: (typeof metricStatuses)[number];
   originalName: string;
   definition: string;
+  reason?: string;
 };
 export type Observation = {
   id: string;
@@ -301,6 +302,7 @@ export function validateResearch(
             !metricStatuses.includes(m.status) ||
             typeof m.originalName !== "string" ||
             typeof m.definition !== "string" ||
+            (m.reason !== undefined && typeof m.reason !== "string") ||
             (m.status === "확인됨"
               ? typeof m.value !== "number" ||
                 !Number.isFinite(m.value) ||
@@ -372,6 +374,7 @@ export function researchCsv(research: Research, contents: Content[]) {
       "status",
       "originalName",
       "definition",
+      "reason",
     ],
   ];
   for (const o of research.observations)
@@ -390,6 +393,7 @@ export function researchCsv(research: Research, contents: Content[]) {
         m.status,
         m.originalName,
         m.definition,
+        m.reason ?? "",
       ]);
     }
   return "\uFEFF" + rows.map((r) => r.map(quote).join(",")).join("\r\n");
