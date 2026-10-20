@@ -1,3 +1,9 @@
+import {
+  demoResearch,
+  legacyResearch,
+  validateResearch,
+  type Research,
+} from "./research";
 export type Fields = Record<string, string>;
 export type Candidate = { id: string; mode: "demo" | "user"; fields: Fields };
 export type Content = {
@@ -14,8 +20,8 @@ export type Entry = {
   points?: Point[];
 };
 export type Point = { date: string; value: number };
-export type State = {
-  version: 1;
+export type State = Research & {
+  version: 2;
   candidates: Candidate[];
   contents: Content[];
   entries: Entry[];
@@ -209,26 +215,28 @@ export function initialState(): State {
       },
     }),
   );
+  const contents: Content[] = candidates.map((c, i) => ({
+    id: `demo-content-${i}`,
+    candidateId: c.id,
+    mode: "demo",
+    fields: {
+      title: `${c.fields.name} 사용 사례 (시연)`,
+      platform: ["인스타그램", "틱톡", "유튜브"][i % 3],
+      author: "가상 작성자",
+      authorType: authorTypes[i % 4],
+      source: "시연",
+      language: ["영어", "일본어", "독일어"][i % 3],
+      creatorCountry: "미확인",
+      audienceMarket: "미확인",
+      sponsorship: "미확인",
+      observed: today(),
+    },
+  }));
   return {
-    version: 1,
+    version: 2,
     candidates,
-    contents: candidates.map((c, i) => ({
-      id: `demo-content-${i}`,
-      candidateId: c.id,
-      mode: "demo",
-      fields: {
-        title: `${c.fields.name} 사용 사례 (시연)`,
-        platform: ["인스타그램", "틱톡", "유튜브"][i % 3],
-        author: "가상 작성자",
-        authorType: authorTypes[i % 4],
-        source: "시연",
-        language: ["영어", "일본어", "독일어"][i % 3],
-        creatorCountry: "미확인",
-        audienceMarket: "미확인",
-        sponsorship: "미확인",
-        observed: today(),
-      },
-    })),
+    contents,
+    ...demoResearch(contents),
     entries: [],
     searches: [],
     categories: [...categories],
@@ -247,7 +255,7 @@ export function validateBackup(raw: unknown): State {
   const x = raw as State;
   if (
     !x ||
-    x.version !== 1 ||
+    ![1, 2].includes(x.version) ||
     !Array.isArray(x.candidates) ||
     !Array.isArray(x.contents) ||
     !Array.isArray(x.entries) ||
@@ -255,7 +263,7 @@ export function validateBackup(raw: unknown): State {
     !Array.isArray(x.categories) ||
     typeof x.demoDeleted !== "boolean"
   )
-    throw Error("지원하는 버전 1 백업 파일이 아닙니다.");
+    throw Error("지원하는 버전 1·2 백업 파일이 아닙니다.");
   const ids = new Set<string>();
   for (const c of x.candidates) {
     if (
@@ -318,10 +326,25 @@ export function validateBackup(raw: unknown): State {
     !x.categories.every((c) => typeof c === "string" && c.length > 0)
   )
     throw Error("설정 형식이 잘못되었습니다.");
-  return structuredClone(x);
+  const migrated: State =
+    (x.version as number) === 1
+      ? { ...x, version: 2, ...legacyResearch(x.contents) }
+      : x;
+  validateResearch(
+    {
+      observations: migrated.observations,
+      commentEvidence: migrated.commentEvidence,
+      siteReviews: migrated.siteReviews,
+      aiRecords: migrated.aiRecords,
+    },
+    migrated.contents,
+    migrated.candidates,
+  );
+  return structuredClone(migrated);
 }
 export function candidateCsv(cs: Candidate[]) {
   const keys = [
+    "mode",
     "name",
     "brand",
     "category",
@@ -337,7 +360,11 @@ export function candidateCsv(cs: Candidate[]) {
     "\uFEFF" +
     [
       keys.join(","),
-      ...cs.map((c) => keys.map((k) => quote(c.fields[k] ?? "")).join(",")),
+      ...cs.map((c) =>
+        keys
+          .map((k) => quote(k === "mode" ? c.mode : (c.fields[k] ?? "")))
+          .join(","),
+      ),
     ].join("\r\n")
   );
 }

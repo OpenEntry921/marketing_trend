@@ -741,3 +741,75 @@ footer {
     text-align: center;
   }
 }
+details {
+  border: 1px solid #dce4d8;
+  border-radius: 7px;
+  padding: 16px;
+  margin: 18px 0;
+  background: #fcfdf9;
+}
+summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: #345c4c;
+}
+details[open] > summary {
+  margin-bottom: 20px;
+}
+fieldset {
+  border: 1px solid #dce4d8;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 14px;
+  margin: 12px 0;
+}
+legend {
+  font-size: 12px;
+  color: #5e7963;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.metric-grid > div {
+  background: #edf3e8;
+  padding: 15px;
+  border-radius: 6px;
+}
+.metric-grid strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 20px;
+}
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+details article {
+  padding: 18px;
+  margin: 16px 0;
+}
+h4 {
+  line-height: 1.8;
+}
+.metric-grid small {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  details {
+    padding: 13px;
+  }
+  fieldset .form-grid {
+    gap: 10px;
+  }
+  details dl {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+}
