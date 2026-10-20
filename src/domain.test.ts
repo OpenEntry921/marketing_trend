@@ -57,7 +57,7 @@ describe("data boundaries", () => {
   it("rejects malformed backups and orphaned records", () => {
     const s = initialState();
     expect(validateBackup(JSON.parse(JSON.stringify(s)))).toEqual(s);
-    expect(() => validateBackup({ ...s, version: 2 })).toThrow();
+    expect(() => validateBackup({ ...s, version: 99 })).toThrow();
     expect(() =>
       validateBackup({
         ...s,
@@ -111,6 +111,7 @@ describe("data boundaries", () => {
     });
     s.candidates = s.candidates.filter((c) => c.mode === "user");
     s.contents = [];
+    s.observations = [];
     s.demoDeleted = true;
     await save(s);
     expect(await load()).toEqual(s);

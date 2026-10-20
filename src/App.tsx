@@ -1,3 +1,10 @@
+import {
+  ContentCollection,
+  ContentMetrics,
+  SiteAiPanels,
+  ComparisonEvidence,
+} from "./Evidence";
+import { retainResearch, researchCsv } from "./research";
 import React, { useEffect, useState } from "react";
 import {
   LineChart,
@@ -26,7 +33,12 @@ import {
   type State,
 } from "./domain";
 import { load, save } from "./store";
-import { providers } from "./providers";
+import {
+  providers,
+  dataProviders,
+  capabilityLabels,
+  type ProviderCapability,
+} from "./providers";
 import "./style.css";
 type Spec = [string, string, string?];
 const pickFields = (fields: Fields, spec: Spec[]): Fields =>
@@ -68,14 +80,15 @@ const contentSpec: Spec[] = [
   ["platform", "플랫폼", "인스타그램|틱톡|유튜브|기타"],
   ["author", "작성자명"],
   ["authorType", "작성자 유형", authorTypes.join("|")],
+  ["platformId", "플랫폼 콘텐츠 ID"],
+  ["format", "콘텐츠 형식", "미확인|일반 영상|숏폼|이미지|기타"],
   ["published", "게시일", "date"],
-  ["observed", "관측일", "date"],
   ["language", "콘텐츠 언어"],
   ["creatorCountry", "작성자 소재지"],
   ["audienceMarket", "실제 구매자 시장"],
-  ["views", "조회수", "number"],
-  ["likes", "좋아요", "number"],
-  ["comments", "댓글 수", "number"],
+  ["marketEvidence", "소재지·대상 시장 확인 근거", "textarea"],
+  ["sponsorshipEvidence", "광고·협찬 판단 근거", "textarea"],
+  ["sponsorshipChecked", "광고·협찬 확인일", "date"],
   ["sponsorship", "광고·협찬", "미확인|표시 있음"],
   ["buyEvidence", "구매 문의 발언과 근거", "textarea"],
   ["repeatEvidence", "재구매·리필·교체 발언과 근거", "textarea"],
@@ -267,6 +280,14 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [notice]);
   async function commit(next: State) {
+    next = {
+      ...next,
+      ...retainResearch(
+        next,
+        new Set(next.candidates.map((c) => c.id)),
+        new Set(next.contents.map((c) => c.id)),
+      ),
+    };
     setBusy(true);
     try {
       await save(next);
@@ -1136,7 +1157,7 @@ export default function App() {
                           )
                           .map(([k, t]) => (
                             <tr key={k}>
-                              <th>{t}</th>
+                              <th scope="row">{t}</th>
                               {cs
                                 .filter((c) => compare.includes(c.id))
                                 .map((c) => (
@@ -1144,6 +1165,10 @@ export default function App() {
                                 ))}
                             </tr>
                           ))}
+                        <ComparisonEvidence
+                          state={state}
+                          candidates={cs.filter((c) => compare.includes(c.id))}
+                        />
                       </tbody>
                     </table>
                   )}
@@ -1179,20 +1204,23 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <dl>
-                      {productSpec.map(([k, t]) => (
-                        <React.Fragment key={k}>
-                          <dt>{t}</dt>
-                          <dd>
-                            {k === "website" ? (
-                              <Link url={active.fields[k]} />
-                            ) : (
-                              val(active.fields[k])
-                            )}
-                          </dd>
-                        </React.Fragment>
-                      ))}
-                    </dl>
+                    <details open>
+                      <summary>제품 기본 정보와 검토 상태</summary>
+                      <dl>
+                        {productSpec.map(([k, t]) => (
+                          <React.Fragment key={k}>
+                            <dt>{t}</dt>
+                            <dd>
+                              {k === "website" ? (
+                                <Link url={active.fields[k]} />
+                              ) : (
+                                val(active.fields[k])
+                              )}
+                            </dd>
+                          </React.Fragment>
+                        ))}
+                      </dl>
+                    </details>
                     <div className="actions">
                       <button
                         onClick={() => {
@@ -1211,25 +1239,36 @@ export default function App() {
                     </div>
                   </section>
                   <h2>연결된 콘텐츠</h2>
-                  {state.contents
-                    .filter((c) => c.candidateId === active.id)
-                    .map((c) => (
+                  <ContentCollection
+                    key={"contents-" + active.id}
+                    state={state}
+                    candidateId={active.id}
+                    render={(c) => (
                       <article key={c.id}>
                         <div className="row">
                           <h3>{c.fields.title}</h3>
                           <span className="tag">{c.fields.source}</span>
                         </div>
                         <Link url={c.fields.url} label="원문 열기" />
-                        <dl>
-                          {contentSpec
-                            .filter(([k]) => k !== "url")
-                            .map(([k, t]) => (
-                              <React.Fragment key={k}>
-                                <dt>{t}</dt>
-                                <dd>{val(c.fields[k])}</dd>
-                              </React.Fragment>
-                            ))}
-                        </dl>
+                        <ContentMetrics
+                          key={c.id}
+                          state={state}
+                          content={c}
+                          commit={commit}
+                        />
+                        <details>
+                          <summary>콘텐츠 기본 정보·근거</summary>
+                          <dl>
+                            {contentSpec
+                              .filter(([k]) => k !== "url")
+                              .map(([k, t]) => (
+                                <React.Fragment key={k}>
+                                  <dt>{t}</dt>
+                                  <dd>{val(c.fields[k])}</dd>
+                                </React.Fragment>
+                              ))}
+                          </dl>
+                        </details>
                         <button
                           onClick={() => {
                             setEditingContent(c.id);
@@ -1274,7 +1313,33 @@ export default function App() {
                           콘텐츠 삭제
                         </button>
                       </article>
-                    ))}
+                    )}
+                  />
+                  <details>
+                    <summary>국내 검색·시장 검증 기록</summary>
+                    {history("market")}
+                    <button onClick={() => setPage("시장 검증")}>
+                      조사 기록 추가로 이동
+                    </button>
+                  </details>
+                  <SiteAiPanels
+                    key={"site-ai-" + active.id}
+                    state={state}
+                    candidate={active}
+                    commit={commit}
+                  />
+                  <details>
+                    <summary>다음 조사 과제</summary>
+                    <p>{val(active.fields.next)}</p>
+                    <button
+                      onClick={() => {
+                        setEditing(active);
+                        setModal("candidate");
+                      }}
+                    >
+                      조사 과제 편집
+                    </button>
+                  </details>
                 </>
               ) : (
                 cards(
@@ -1494,6 +1559,36 @@ export default function App() {
                   이번 버전은 API 키를 입력·저장하지 않습니다. 향후 서버 측
                   연결을 추가할 수 있도록 공급자 인터페이스를 분리했습니다.
                 </p>
+                <p>
+                  유튜브 지정 콘텐츠의 기본 정보·지표 조회는 서버 경로를
+                  준비했습니다. 키 설정과 실제 호출 검증 전에는 미연결입니다.
+                  검색·댓글은 별도 후속 연결입니다.
+                </p>
+                {dataProviders.map((p) => (
+                  <details key={p.name}>
+                    <summary>{p.name} 공급자별 능력·범위·권한</summary>
+                    {Object.entries(p.capabilities).map(([k, c]) => (
+                      <div key={k}>
+                        <h4>
+                          {capabilityLabels[k as ProviderCapability]} ·{" "}
+                          {c.status}
+                        </h4>
+                        <dl>
+                          <dt>대상 범위</dt>
+                          <dd>{c.scope}</dd>
+                          <dt>인증·권한</dt>
+                          <dd>{c.auth}</dd>
+                          <dt>호출 한도</dt>
+                          <dd>{c.limit}</dd>
+                          <dt>보관·갱신</dt>
+                          <dd>{c.retention}</dd>
+                          <dt>오류</dt>
+                          <dd>{c.error}</dd>
+                        </dl>
+                      </div>
+                    ))}
+                  </details>
+                ))}
                 {providers.map((p) => (
                   <div className="connection" key={p.name}>
                     <strong>{p.name}</strong>
@@ -1550,6 +1645,25 @@ export default function App() {
                     }
                   >
                     JSON 전체 내보내기
+                  </button>
+                  <button
+                    onClick={() =>
+                      download(
+                        researchCsv(
+                          {
+                            ...state,
+                            observations: state.observations.filter(
+                              (o) => o.mode === mode,
+                            ),
+                          },
+                          state.contents,
+                        ),
+                        "observations-with-sources.csv",
+                        "text/csv",
+                      )
+                    }
+                  >
+                    현재 모드 관측·출처 CSV 내보내기
                   </button>
                   <button
                     onClick={() =>
@@ -1615,6 +1729,10 @@ export default function App() {
                         ...state,
                         candidates: [...state.candidates, ...demo.candidates],
                         contents: [...state.contents, ...demo.contents],
+                        observations: [
+                          ...state.observations,
+                          ...demo.observations,
+                        ],
                         demoDeleted: false,
                       });
                     }}
