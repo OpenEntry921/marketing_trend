@@ -1,3 +1,4 @@
+import InstagramImport from "./InstagramImport";
 import {
   ContentCollection,
   ContentMetrics,
@@ -375,8 +376,18 @@ export default function App() {
   }
   async function saveContent(f: Fields) {
     if (!active) return;
+    const previous = state.contents.find((c) => c.id === editingContent);
+    const imported = previous?.fields.source === "실제 API 데이터";
+    if (
+      imported &&
+      (f.platform !== previous.fields.platform ||
+        f.platformId !== previous.fields.platformId)
+    ) {
+      setError("실제 API 콘텐츠의 플랫폼과 게시물 ID는 변경할 수 없습니다.");
+      return;
+    }
     const url = normalizeUrl(f.url ?? "");
-    if (!url) {
+    if (!url && !(imported && !f.url)) {
       setError("직접 등록할 콘텐츠의 올바른 HTTP(S) 원문 URL을 입력하세요.");
       return;
     }
@@ -384,7 +395,10 @@ export default function App() {
       (c) =>
         c.id !== editingContent &&
         c.mode === mode &&
-        normalizeUrl(c.fields.url ?? "") === url,
+        ((!!url && normalizeUrl(c.fields.url ?? "") === url) ||
+          (!!f.platformId &&
+            c.fields.platform === f.platform &&
+            c.fields.platformId === f.platformId)),
     );
     if (existing) {
       const parent = state.candidates.find(
@@ -411,7 +425,11 @@ export default function App() {
         platform: "인스타그램",
         ...f,
         url,
-        source: mode === "demo" ? "시연" : "수동",
+        source: imported
+          ? "실제 API 데이터"
+          : mode === "demo"
+            ? "시연"
+            : "수동",
       },
     };
     if (
@@ -482,7 +500,9 @@ export default function App() {
           <article key={c.id}>
             <div className="row">
               <span className="tag">
-                {c.mode === "demo" ? "시연 · 가상 제품" : "사용자 입력"}
+                {c.mode === "demo"
+                  ? "시연 데이터 · 가상 제품"
+                  : "사용자 데이터"}
               </span>
               <span>{c.fields.category}</span>
             </div>
@@ -680,6 +700,7 @@ export default function App() {
             "대시보드",
             "새로운 제품 발견",
             "원하는 제품 탐색",
+            "Instagram 계정으로 가져오기",
             "저장한 후보",
             "시장 검증",
             "총판 검토",
@@ -691,7 +712,7 @@ export default function App() {
               onClick={() => nav(p)}
             >
               <span aria-hidden="true">
-                {["◫", "✧", "⌕", "▤", "◷", "◇", "⚙"][i]}
+                {["◫", "✧", "⌕", "◎", "▤", "◷", "◇", "⚙"][i]}
               </span>
               {p}
             </button>
@@ -731,9 +752,11 @@ export default function App() {
           </div>
         </header>
         <div className="banner">
-          {mode === "demo"
-            ? "시연 모드 · 모든 제품·콘텐츠는 가상 사례입니다. 실제 검색·분석 결과가 아닙니다."
-            : "사용자 작업 · 직접 입력한 자료만 표시합니다. 데이터는 이 브라우저에 저장됩니다."}
+          {page === "Instagram 계정으로 가져오기"
+            ? "Instagram 가져오기는 성공한 공식 API 응답만 표시합니다. 저장은 사용자 작업 공간에 적용합니다."
+            : mode === "demo"
+              ? "시연 데이터 · 시연 모드 · 모든 제품·콘텐츠는 가상 사례입니다. 실제 검색·분석 결과가 아닙니다."
+              : "사용자 작업 · 저장한 수동 자료와 실제 API 자료를 표시합니다. 데이터는 이 브라우저에 저장됩니다."}
         </div>
         {error && (
           <div role="alert" className="error">
@@ -831,6 +854,13 @@ export default function App() {
                 )}
               </section>
             </>
+          )}
+          {page === "Instagram 계정으로 가져오기" && (
+            <InstagramImport
+              state={state}
+              commit={commit}
+              onSaved={() => setMode("user")}
+            />
           )}
           {(page === "새로운 제품 발견" || wanted) && (
             <>
@@ -1181,7 +1211,9 @@ export default function App() {
                     <div className="section-heading">
                       <div>
                         <span className="tag">
-                          {mode === "demo" ? "시연 · 가상 제품" : "사용자 입력"}
+                          {mode === "demo"
+                            ? "시연 데이터 · 가상 제품"
+                            : "사용자 데이터"}
                         </span>
                         <h2>
                           {active.fields.brand} / {active.fields.name}
@@ -1247,7 +1279,11 @@ export default function App() {
                       <article key={c.id}>
                         <div className="row">
                           <h3>{c.fields.title}</h3>
-                          <span className="tag">{c.fields.source}</span>
+                          <span className="tag">
+                            {c.mode === "demo"
+                              ? "시연 데이터"
+                              : c.fields.source}
+                          </span>
                         </div>
                         <Link url={c.fields.url} label="원문 열기" />
                         <ContentMetrics
@@ -1555,8 +1591,15 @@ export default function App() {
             <>
               <section>
                 <h2>외부 연결 상태</h2>
+                <button onClick={() => nav("Instagram 계정으로 가져오기")}>
+                  Instagram 가져오기 화면 열기
+                </button>
                 <p>
-                  이번 버전은 API 키를 입력·저장하지 않습니다. 향후 서버 측
+                  Instagram 해시태그 검색: Meta 승인 대기. 아래는 기본 공급자
+                  계획 정보이며 실제 요청 결과는 가져오기 화면에서 확인합니다.
+                </p>
+                <p>
+                  브라우저 화면은 API 키를 입력·저장하지 않습니다. 서버 측
                   연결을 추가할 수 있도록 공급자 인터페이스를 분리했습니다.
                 </p>
                 <p>

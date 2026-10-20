@@ -325,6 +325,7 @@ export function ContentMetrics({
                 ? current.metrics[k].value?.toLocaleString("ko-KR")
                 : (current?.metrics[k].status ?? "미확인")}
             </strong>
+            <small>{current?.metrics[k].reason}</small>
           </div>
         ))}
       </div>
@@ -410,7 +411,8 @@ export function ContentMetrics({
                       {o.metrics[k].value ?? o.metrics[k].status}
                       <br />
                       <small>
-                        {o.metrics[k].originalName} · {o.metrics[k].definition}
+                        {o.metrics[k].originalName} · {o.metrics[k].definition}{" "}
+                        {o.metrics[k].reason}
                       </small>
                     </td>
                   ))}

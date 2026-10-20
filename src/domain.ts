@@ -3,7 +3,7 @@ import {
   legacyResearch,
   validateResearch,
   type Research,
-} from "./research";
+} from "./research.ts";
 export type Fields = Record<string, string>;
 export type Candidate = { id: string; mode: "demo" | "user"; fields: Fields };
 export type Content = {
